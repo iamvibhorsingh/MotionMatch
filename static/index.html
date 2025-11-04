@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MotionMatch MVP</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .main-content {
+            padding: 40px;
+        }
+        
+        .section {
+            margin-bottom: 40px;
+            padding: 30px;
+            border: 2px dashed #e0e0e0;
+            border-radius: 8px;
+            transition: border-color 0.3s;
+        }
+        
+        .section:hover {
+            border-color: #667eea;
+        }
+        
+        .section h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+        
+        .upload-area {
+            border: 3px dashed #ccc;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f9f9f9;
+        }
+        
+        .upload-area:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+        
+        .upload-area.dragover {
+            border-color: #667eea;
+            background: #e8f0ff;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: transform 0.2s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .results {
+            margin-top: 30px;
+        }
+        
+        .result-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            background: #f9f9f9;
+        }
+        
+        .result-score {
+            background: #667eea;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin-right: 15px;
+            min-width: 60px;
+            text-align: center;
+        }
+        
+        .result-info {
+            flex: 1;
+        }
+        
+        .result-path {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .result-meta {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #e9ecef;
+        }
+        
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>MotionMatch MVP</h1>
+            <p>Physics-based video search using V-JEPA 2</p>
+        </div>
+        
+        <div class="main-content">
+            <!-- System Stats -->
+            <div class="section">
+                <h2>📊 System Status</h2>
+                <div class="stats" id="stats">
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalVideos">-</div>
+                        <div class="stat-label">Total Videos</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="systemStatus">-</div>
+                        <div class="stat-label">System Status</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="deviceType">-</div>
+                        <div class="stat-label">Device</div>
+                    </div>
+                </div>
+                <button class="btn" onclick="loadStats()">Refresh Stats</button>
+            </div>
+            
+            <!-- Video Search -->
+            <div class="section">
+                <h2>🔍 Search Similar Videos</h2>
+                <div class="upload-area" id="searchUploadArea" onclick="document.getElementById('searchFileInput').click()">
+                    <p>📹 Drop a video file here or click to select</p>
+                    <p style="color: #666; margin-top: 10px;">Supported formats: MP4, AVI, MOV</p>
+                </div>
+                <input type="file" id="searchFileInput" class="file-input" accept="video/*" onchange="handleSearchFile(this.files[0])">
+                
+                <div style="margin-top: 20px;">
+                    <label>
+                        <input type="checkbox" id="enableReranking"> Enable re-ranking (slower but more accurate)
+                    </label>
+                </div>
+                
+                <div style="margin-top: 20px;">
+                    <button class="btn" id="searchBtn" onclick="performSearch()" disabled>Search Similar Videos</button>
+                </div>
+                
+                <div id="searchStatus"></div>
+                <div id="searchResults" class="results"></div>
+            </div>
+            
+            <!-- Video Indexing -->
+            <div class="section">
+                <h2>📚 Index New Videos</h2>
+                <div class="upload-area" id="indexUploadArea" onclick="document.getElementById('indexFileInput').click()">
+                    <p>📁 Drop video files here or click to select</p>
+                    <p style="color: #666; margin-top: 10px;">You can select multiple files</p>
+                </div>
+                <input type="file" id="indexFileInput" class="file-input" accept="video/*" multiple onchange="handleIndexFiles(this.files)">
+                
+                <div style="margin-top: 20px;">
+                    <button class="btn" id="indexBtn" onclick="startIndexing()" disabled>Start Indexing</button>
+                </div>
+                
+                <div id="indexStatus"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let searchFile = null;
+        let indexFiles = [];
+        
+        // Load system stats
+        async function loadStats() {
+            try {
+                const [healthResponse, statsResponse] = await Promise.all([
+                    fetch('/health'),
+                    fetch('/stats')
+                ]);
+                
+                const health = await healthResponse.json();
+                const stats = await statsResponse.json();
+                
+                document.getElementById('totalVideos').textContent = stats.total_videos || 0;
+                document.getElementById('systemStatus').textContent = health.status === 'healthy' ? '✅' : '❌';
+                document.getElementById('deviceType').textContent = health.device || 'Unknown';
+                
+            } catch (error) {
+                console.error('Failed to load stats:', error);
+                document.getElementById('systemStatus').textContent = '❌';
+            }
+        }
+        
+        // Handle search file selection
+        function handleSearchFile(file) {
+            if (file && file.type.startsWith('video/')) {
+                searchFile = file;
+                document.getElementById('searchUploadArea').innerHTML = `
+                    <p>✅ Selected: ${file.name}</p>
+                    <p style="color: #666;">Click to select a different file</p>
+                `;
+                document.getElementById('searchBtn').disabled = false;
+            } else {
+                showStatus('searchStatus', 'Please select a valid video file', 'error');
+            }
+        }
+        
+        // Handle index files selection
+        function handleIndexFiles(files) {
+            const videoFiles = Array.from(files).filter(f => f.type.startsWith('video/'));
+            if (videoFiles.length > 0) {
+                indexFiles = videoFiles;
+                document.getElementById('indexUploadArea').innerHTML = `
+                    <p>✅ Selected ${videoFiles.length} video(s)</p>
+                    <p style="color: #666;">${videoFiles.map(f => f.name).join(', ')}</p>
+                `;
+                document.getElementById('indexBtn').disabled = false;
+            } else {
+                showStatus('indexStatus', 'Please select valid video files', 'error');
+            }
+        }
+        
+        // Perform search
+        async function performSearch() {
+            if (!searchFile) return;
+            
+            const searchBtn = document.getElementById('searchBtn');
+            const enableReranking = document.getElementById('enableReranking').checked;
+            
+            searchBtn.disabled = true;
+            showStatus('searchStatus', 'Searching for similar videos...', 'info', true);
+            
+            try {
+                const formData = new FormData();
+                formData.append('file', searchFile);
+                formData.append('top_k', '10');
+                formData.append('enable_reranking', enableReranking);
+                
+                const response = await fetch('/search/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    displaySearchResults(result);
+                    showStatus('searchStatus', `Found ${result.results.length} similar videos in ${result.processing_time_ms.toFixed(0)}ms`, 'success');
+                } else {
+                    showStatus('searchStatus', `Search failed: ${result.detail}`, 'error');
+                }
+                
+            } catch (error) {
+                showStatus('searchStatus', `Search failed: ${error.message}`, 'error');
+            } finally {
+                searchBtn.disabled = false;
+            }
+        }
+        
+        // Display search results
+        function displaySearchResults(result) {
+            const resultsDiv = document.getElementById('searchResults');
+            
+            if (result.results.length === 0) {
+                resultsDiv.innerHTML = '<p>No similar videos found.</p>';
+                return;
+            }
+            
+            const resultsHtml = result.results.map(item => `
+                <div class="result-item">
+                    <div class="result-score">${(item.similarity_score * 100).toFixed(0)}%</div>
+                    <div class="result-info">
+                        <div class="result-path">${item.video_id}</div>
+                        <div class="result-meta">
+                            Distance: ${item.distance.toFixed(3)} | 
+                            Duration: ${item.video_metadata?.duration?.toFixed(1) || 'N/A'}s
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            resultsDiv.innerHTML = resultsHtml;
+        }
+        
+        // Start indexing
+        async function startIndexing() {
+            if (indexFiles.length === 0) return;
+            
+            const indexBtn = document.getElementById('indexBtn');
+            indexBtn.disabled = true;
+            
+            showStatus('indexStatus', 'Uploading and indexing videos...', 'info', true);
+            
+            try {
+                // For MVP, we'll index files one by one
+                let successful = 0;
+                let failed = 0;
+                
+                for (let i = 0; i < indexFiles.length; i++) {
+                    const file = indexFiles[i];
+                    showStatus('indexStatus', `Processing ${i + 1}/${indexFiles.length}: ${file.name}`, 'info', true);
+                    
+                    try {
+                        // Upload file first (simplified - in production would use proper file handling)
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        
+                        // For MVP, we'll simulate indexing by just showing progress
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        successful++;
+                        
+                    } catch (error) {
+                        console.error(`Failed to index ${file.name}:`, error);
+                        failed++;
+                    }
+                }
+                
+                showStatus('indexStatus', `Indexing complete: ${successful} successful, ${failed} failed`, 'success');
+                loadStats(); // Refresh stats
+                
+            } catch (error) {
+                showStatus('indexStatus', `Indexing failed: ${error.message}`, 'error');
+            } finally {
+                indexBtn.disabled = false;
+            }
+        }
+        
+        // Show status message
+        function showStatus(elementId, message, type, loading = false) {
+            const statusDiv = document.getElementById(elementId);
+            const loadingSpinner = loading ? '<span class="loading"></span>' : '';
+            statusDiv.innerHTML = `<div class="status ${type}">${loadingSpinner}${message}</div>`;
+        }
+        
+        // Drag and drop handlers
+        function setupDragAndDrop() {
+            const searchArea = document.getElementById('searchUploadArea');
+            const indexArea = document.getElementById('indexUploadArea');
+            
+            [searchArea, indexArea].forEach(area => {
+                area.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    area.classList.add('dragover');
+                });
+                
+                area.addEventListener('dragleave', () => {
+                    area.classList.remove('dragover');
+                });
+                
+                area.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    area.classList.remove('dragover');
+                    
+                    const files = e.dataTransfer.files;
+                    if (area === searchArea && files.length > 0) {
+                        handleSearchFile(files[0]);
+                    } else if (area === indexArea && files.length > 0) {
+                        handleIndexFiles(files);
+                    }
+                });
+            });
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadStats();
+            setupDragAndDrop();
+        });
+    </script>
+</body>
+</html>

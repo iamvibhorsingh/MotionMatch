@@ -1,0 +1,155 @@
+version: '3.8'
+
+services:
+  # Redis for caching and task queue
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # PostgreSQL for metadata
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-motionmatch}
+      POSTGRES_USER: ${POSTGRES_USER:-motionmatch}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      # Use SCRAM-SHA-256 for secure password authentication
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=trust"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U motionmatch"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Milvus vector database
+  milvus:
+    image: milvusdb/milvus:v2.3.0
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    volumes:
+      - milvus_data:/var/lib/milvus
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    depends_on:
+      - etcd
+      - minio
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # etcd for Milvus
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.0
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    volumes:
+      - etcd_data:/etcd
+
+  # MinIO for Milvus storage
+  minio:
+    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    command: minio server /minio_data
+    volumes:
+      - minio_data:/minio_data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+  # MotionMatch API Server with GPU support
+  motionmatch-api:
+    build: .
+    command: python api.py
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - DATABASE_URL=${DATABASE_URL:-postgresql://motionmatch:password@postgres:5432/motionmatch}
+      - MILVUS_HOST=milvus
+      - CUDA_AVAILABLE=true
+      - ENABLE_SHOT_SEGMENTATION=true
+      - ENABLE_ROI_DETECTION=true
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./storage:/app/storage
+      - ./temp:/app/temp
+      - ./testvideo:/app/testvideo
+    depends_on:
+      - redis
+      - postgres
+      - milvus
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    profiles:
+      - gpu  # GPU-enabled service
+
+  # Celery Worker with GPU support
+  celery-worker:
+    build: .
+    command: celery -A celery_app worker --loglevel=info --queue=indexing --concurrency=1 --pool=solo
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - DATABASE_URL=${DATABASE_URL:-postgresql://motionmatch:password@postgres:5432/motionmatch}
+      - MILVUS_HOST=milvus
+      - CUDA_AVAILABLE=true
+      - ENABLE_SHOT_SEGMENTATION=true
+      - ENABLE_ROI_DETECTION=true
+    volumes:
+      - ./storage:/app/storage
+      - ./temp:/app/temp
+      - ./testvideo:/app/testvideo
+    depends_on:
+      - redis
+      - postgres
+      - milvus
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    profiles:
+      - gpu  # GPU-enabled service
+
+volumes:
+  redis_data:
+  postgres_data:
+  milvus_data:
+  etcd_data:
+  minio_data:

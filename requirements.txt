@@ -1,0 +1,45 @@
+# Core ML/AI
+torch>=2.0.0
+transformers>=4.45.0
+# Note: V-JEPA 2 support may require latest transformers from main branch:
+# pip install git+https://github.com/huggingface/transformers.git
+torchvision>=0.15.0
+opencv-python>=4.8.0
+decord>=0.6.0
+einops>=0.7.0
+numpy>=1.24.0
+av>=10.0.0  # For video processing in transformers
+
+# Vector search
+pymilvus>=2.3.0
+
+# Backend
+fastapi>=0.104.0
+celery>=5.3.0
+redis>=5.0.0
+psycopg2-binary>=2.9.9
+sqlalchemy>=2.0.0
+boto3>=1.29.0
+
+# Utilities
+pandas>=2.1.0
+Pillow>=10.0.0
+tqdm>=4.66.0
+pydantic>=2.5.0
+python-multipart>=0.0.6
+uvicorn>=0.24.0
+
+# DTW for re-ranking
+fastdtw>=0.3.4
+scipy>=1.11.0
+
+# Shot segmentation
+scenedetect>=0.6.2
+
+# ROI detection and tracking
+ultralytics>=8.0.0
+supervision>=0.16.0
+
+# Development
+pytest>=7.4.0
+black>=23.0.0
